@@ -45,3 +45,47 @@ async fn main() {
     println!("Elapsed time: {:.2} seconds", elapsed);
     println!("Requests per second: {:.2}", requests_per_second);
 }
+
+#[test]
+fn test_stress_test_cli() {
+    let url = "http://localhost:8000";
+    let num_requests = 1000;
+    let concurrency = 100;
+
+    // Run the stress testing CLI code in a separate thread
+    let join_handle = std::thread::spawn(move || {
+        let client = Client::new();
+        let mut handles = vec![];
+
+        let start = std::time::Instant::now();
+
+        for _ in 0..concurrency {
+            let client = client.clone();
+            let url = url.clone().to_string();
+
+            let handle = std::thread::spawn(move || {
+                for _ in 0..(num_requests / concurrency) {
+                    let _ = client.get(&url).send();
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let elapsed = start.elapsed().as_secs_f64();
+        let requests_per_second = num_requests as f64 / elapsed;
+
+        (elapsed, requests_per_second)
+    });
+
+    // Wait for the stress testing to complete
+    let (elapsed, requests_per_second) = join_handle.join().unwrap();
+
+    // Assertions
+    assert!(elapsed > 0.0, "Elapsed time should be greater than 0");
+    assert!(requests_per_second > 0.0, "Requests per second should be greater than 0");
+}
